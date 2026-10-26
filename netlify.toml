@@ -1,0 +1,5 @@
+[build]
+  # Copy only the public site files into public/ so backend.py, the SQLite file,
+  # and other repo files are never served.
+  command = "python3 build_static.py"
+  publish = "public"

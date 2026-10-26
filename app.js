@@ -1,4 +1,5 @@
-const services = [
+// Fallback listings, used until /api/services responds (or if it can't be reached).
+let services = [
   {name:"Neighborhood Food Shelf",category:"Food",icon:"🥕",description:"Groceries and pantry staples for individuals and families.",address:"214 Maple Street, Springfield",hours:"Mon–Fri, 9 am–4 pm",phone:"(555) 010-0142",verified:"Example listing",search:"food pantry groceries neighborhood maple"},
   {name:"Open Table Community Kitchen",category:"Food",icon:"🍲",description:"A warm meal and a welcoming place at the table.",address:"8 Oak Avenue, Springfield",hours:"Weekdays, 12–2 pm",phone:"(555) 010-0198",verified:"Example listing",search:"meal kitchen lunch food oak"},
   {name:"Fresh Start Produce Market",category:"Food",icon:"🍎",description:"Affordable fresh produce and nutrition resources.",address:"Market Square, Springfield",hours:"Sat, 8 am–1 pm",phone:"(555) 010-0130",verified:"Example listing",search:"produce market fruit vegetables saturday"},
@@ -19,14 +20,17 @@ const emptyState = document.querySelector("#empty-state");
 const chips = [...document.querySelectorAll(".chip")];
 let activeCategory = "all";
 
-function cardTemplate(service) {
-  const query = encodeURIComponent(service.address);
+const escapeHtml = value => String(value).replace(/[&<>"']/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[char]);
+
+function cardTemplate(rawService) {
+  const query = encodeURIComponent(rawService.address);
+  const service = Object.fromEntries(Object.entries(rawService).map(([key, value]) => [key, escapeHtml(value)]));
   return `<article class="service-card">
     <div class="card-top"><span class="category-label">${service.category}</span><span class="card-icon" aria-hidden="true">${service.icon}</span></div>
     <h3>${service.name}</h3><p class="description">${service.description}</p>
     <p class="card-detail"><span aria-hidden="true">◎</span><span>${service.address}</span></p>
     <p class="card-detail"><span aria-hidden="true">◷</span><span>${service.hours}</span></p>
-    <p class="card-detail"><span aria-hidden="true">☎</span><a class="phone-link" href="tel:${service.phone.replace(/[^+\d]/g, "")}">${service.phone}</a></p>
+    <p class="card-detail"><span aria-hidden="true">☎</span><a class="phone-link" href="tel:${rawService.phone.replace(/[^+\d]/g, "")}">${service.phone}</a></p>
     <div class="card-footer"><span class="verified">${service.verified}</span><a class="card-link" href="https://www.google.com/maps/search/?api=1&query=${query}" target="_blank" rel="noreferrer">Directions ↗</a></div>
   </article>`;
 }
@@ -65,16 +69,43 @@ document.querySelector("#reset-search").addEventListener("click", () => {
   searchInput.focus();
 });
 
-document.querySelector("#correction-form").addEventListener("submit", event => {
+document.querySelector("#correction-form").addEventListener("submit", async event => {
   event.preventDefault();
   const form = event.currentTarget;
-  const suggestion = Object.fromEntries(new FormData(form).entries());
-  const saved = JSON.parse(localStorage.getItem("commonground-suggestions") || "[]");
-  saved.push({...suggestion, submittedAt: new Date().toISOString()});
-  localStorage.setItem("commonground-suggestions", JSON.stringify(saved));
-  form.reset();
-  document.querySelector("#form-status").textContent = "Suggestion saved in this browser. Thanks for helping your community!";
+  const status = document.querySelector("#form-status");
+  const button = form.querySelector("button[type=submit]");
+  button.disabled = true;
+  status.textContent = "Sending…";
+  try {
+    const response = await fetch("/api/suggestions", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(Object.fromEntries(new FormData(form).entries()))
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Could not send your suggestion. Please try again.");
+    form.reset();
+    status.textContent = "Suggestion received. Thanks for helping your community!";
+  } catch (error) {
+    status.textContent = error.message || "Could not send your suggestion. Please try again.";
+  } finally {
+    button.disabled = false;
+  }
 });
 
-renderServices();
+async function loadServices() {
+  try {
+    const response = await fetch("/api/services");
+    if (!response.ok) return;
+    const data = await response.json();
+    if (Array.isArray(data.services) && data.services.length) {
+      services = data.services;
+      renderServices();
+    }
+  } catch {
+    // Keep showing the fallback listings.
+  }
+}
 
+renderServices();
+loadServices();
