@@ -1,4 +1,4 @@
-"""Copy only public assets into the Firebase publish directory."""
+"""Copy only public assets into the Netlify publish directory."""
 from pathlib import Path
 from shutil import copyfile
 

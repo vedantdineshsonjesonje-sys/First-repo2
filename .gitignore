@@ -218,3 +218,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Node / Netlify
+node_modules/
+public/
+commonground.sqlite3
+
+# Local Netlify folder
+.netlify
